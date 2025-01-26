@@ -1,10 +1,8 @@
-
 import { Controller, Post, Get, Patch, Put, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ProjectsService } from './projects.service';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 import { AddCollaboratorDto } from './dto/add-collaborator.dto';
-
 
 @Controller('projects')
 @UseGuards(AuthGuard('jwt'))
@@ -16,13 +14,11 @@ export class ProjectsController {
     @Body() createProjectDto: CreateProjectDto,
     @Request() req,
   ) {
-    // const { name, description } = createProjectDto;
     return this.projectsService.createProject(createProjectDto, req.user.userId);
   }
 
   @Get()
   async getUserProjects(@Request() req) {
-    // console.log("checking the user id at getUserProjects in Project controller nvvvvvvvvvv", req.user.userId);
     return this.projectsService.getProjectsByUser(req.user.userId);
   }
 

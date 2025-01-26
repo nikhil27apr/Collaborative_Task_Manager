@@ -19,13 +19,10 @@ export class Task extends Document {
   dueDate: Date;
 
   @Prop({ required: true })
-  projectId: string; // Reference to the project
+  projectId: string; 
 
-  @Prop({ type: String }) // User ID of the task assignee
+  @Prop({ type: String }) 
   assignedTo: string;
-
-  // @Prop({ type: String }) 
-  // userRole: string;
 
   @Prop({ default: false })
   isArchived: boolean;

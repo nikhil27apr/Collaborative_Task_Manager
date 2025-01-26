@@ -1,26 +1,25 @@
-
 import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Task } from './task.schema';
 import { ProjectsService } from '../projects/projects.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
-// import { Activity } from './activity.schema'; // Import Activity schema
-
-
+import { Activity } from '../activities/activity.schema';
+import { TASKS_MESSAGES } from './constants/tasks.constants';
 
 @Injectable()
 export class TasksService {
   constructor(
     @InjectModel(Task.name) private taskModel: Model<Task>,
-    private readonly notificationsGateway: NotificationsGateway, // Inject NotificationsGateway
-    private readonly projectsService: ProjectsService, // Inject ProjectsService to access project details
+    @InjectModel(Activity.name) private activityModel: Model<Activity>,
+    private readonly notificationsGateway: NotificationsGateway,
+    private readonly projectsService: ProjectsService,
   ) { }
 
-  // private async logActivity(taskId: string, userId: string, description: string) {
-  //   const activity = new this.activityModel({ taskId, userId, description });
-  //   await activity.save();
-  // }
+  private async logActivity(taskId: string, userId: string, description: string) {
+    const activity = new this.activityModel({ taskId, userId, description, timestamp: new Date() });
+    await activity.save();
+  }
 
   async createTask(userId: string, taskData: Partial<Task>) {
     const { projectId } = taskData;
@@ -29,20 +28,14 @@ export class TasksService {
     const project = await this.projectsService.getProjectById(projectId);
     const userRole = project.roles[userId];
 
-    // Add logging to verify the user's role and project data
-    console.log(`User ID: ${userId}`);
-    console.log(`User Role: ${userRole}`);
-    console.log(`Project Data: ${JSON.stringify(project)}`);
-
-
     if (!userRole || userRole === 'viewer') {
-      throw new UnauthorizedException('You do not have permission to create tasks in this project.');
+      throw new UnauthorizedException(TASKS_MESSAGES.ERRORS.UNAUTHORIZED_CREATE);
     }
 
     const task = new this.taskModel(taskData);
     const savedTask = await task.save();
 
-    // await this.logActivity(savedTask._id, userId, 'Task created');
+    await this.logActivity(savedTask._id.toString(), userId, 'Task created');
 
 
     // Notify the assigned user
@@ -56,7 +49,7 @@ export class TasksService {
 
     // Notify all collaborators of the project
     this.notificationsGateway.notifyProjectCollaborators(
-      project.collaborators.map((collaborator) => collaborator.id), // Extract IDs
+      project.collaborators.map((collaborator) => collaborator.id), 
       {
         type: 'task_created',
         taskId: savedTask._id,
@@ -70,9 +63,8 @@ export class TasksService {
     const project = await this.projectsService.getProjectById(projectId);
 
     // Check if the user is a collaborator
-    // if (!project.collaborators.includes(userId)) 
     if (!project.collaborators.map((collaborator) => collaborator.id).includes(userId)) {
-      throw new UnauthorizedException('You are not a collaborator on this project.');
+      throw new UnauthorizedException(TASKS_MESSAGES.ERRORS.UNAUTHORIZED_VIEW);
     }
 
     return this.taskModel.find({ projectId, isArchived: false }).exec();
@@ -86,13 +78,13 @@ export class TasksService {
     const project = await this.projectsService.getProjectById(task.projectId);
     const userRole = project.roles[userId];
     if (!userRole || (userRole !== 'admin' && userRole !== 'editor')) {
-      throw new UnauthorizedException('You do not have permission to update tasks in this project.');
+      throw new UnauthorizedException(TASKS_MESSAGES.ERRORS.UNAUTHORIZED_UPDATE);
     }
 
     Object.assign(task, updates);
     const updatedTask = await task.save();
 
-    // await this.logActivity(updatedTask._id, userId, 'Task updated');
+    await this.logActivity(updatedTask._id.toString(), userId, 'Task updated');
 
     // Notify the assigned user
     if (updatedTask.assignedTo) {
@@ -105,7 +97,7 @@ export class TasksService {
 
     // Notify all collaborators of the project
     this.notificationsGateway.notifyProjectCollaborators(
-      project.collaborators.map((collaborator) => collaborator.id), // Extract IDs
+      project.collaborators.map((collaborator) => collaborator.id), 
       {
         type: 'task_updated',
         taskId: updatedTask._id,
@@ -123,11 +115,14 @@ export class TasksService {
     const project = await this.projectsService.getProjectById(task.projectId);
     const userRole = project.roles[userId];
     if (!userRole || (userRole !== 'admin' && userRole !== 'editor')) {
-      throw new UnauthorizedException('Only admins and editors can delete tasks in this project.');
+      throw new UnauthorizedException(TASKS_MESSAGES.ERRORS.UNAUTHORIZED_DELETE);
     }
 
     // Actually delete the task
     await this.taskModel.findByIdAndDelete(taskId).exec();
+
+    // Log activity
+    await this.logActivity(taskId, userId, 'Task deleted');
 
     // Notify the assigned user
     if (task.assignedTo) {
@@ -156,7 +151,7 @@ export class TasksService {
 
     const project = await this.projectsService.getProjectById(projectId);
     if (!project.collaborators.map((collaborator) => collaborator.id).includes(userId)) {
-      throw new UnauthorizedException('You are not a collaborator on this project.');
+      throw new UnauthorizedException(TASKS_MESSAGES.ERRORS.UNAUTHORIZED_VIEW);
     }
 
     const query: any = { projectId, isArchived: false };
@@ -171,5 +166,9 @@ export class TasksService {
     return this.taskModel.find(query).exec();
   }
 
+  async getTaskActivities(taskId: string) {
+    console.log('Fetching activities for taskId:', taskId); 
+    return this.activityModel.find({ taskId }).sort({ timestamp: -1 }).exec();
+  }
 
 }

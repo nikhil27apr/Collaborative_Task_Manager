@@ -1,4 +1,3 @@
-
 import { Controller, Post, Get, Patch, Delete, Body, Param, Query, UseGuards, Request, Req } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -6,7 +5,7 @@ import { AuthGuard } from '@nestjs/passport';
 @Controller('tasks')
 @UseGuards(AuthGuard('jwt'))
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(private readonly tasksService: TasksService) { }
 
   @Post()
   async createTask(
@@ -40,4 +39,10 @@ export class TasksController {
     const userId = req.user.userId;
     return this.tasksService.filterTasks(userId, query);
   }
+
+  @Get(':taskId/activities')
+  async getActivities(@Param('taskId') taskId: string) {
+    return this.tasksService.getTaskActivities(taskId);
+  }
+
 }

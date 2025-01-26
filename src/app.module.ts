@@ -9,6 +9,8 @@ import { TasksModule } from './tasks/tasks.module';
 import { NotificationsGateway } from './notifications/notifications.gateway';
 import { NotificationsModule } from './notifications/notifications.module';
 import { UsersModule } from './users/users.module';
+import { ActivitiesModule } from './activities/activities.module';
+
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { UsersModule } from './users/users.module';
     TasksModule,
     NotificationsModule,
     UsersModule,
+    ActivitiesModule,
   ],
   controllers: [AppController],
   providers: [AppService, NotificationsGateway],

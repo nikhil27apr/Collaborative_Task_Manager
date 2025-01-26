@@ -1,13 +1,13 @@
-
 import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto'; 
-import { LoginDto } from './dto/login.dto'; 
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { MESSAGES } from './constants/messages';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   // Register route
   @Post('register')
@@ -15,12 +15,12 @@ export class AuthController {
     const { email, username, password } = registerDto;
     try {
       const user = await this.authService.register(email, username, password);
-      return { message: 'User successfully registered', user };
+      return { message: MESSAGES.SUCCESS.USER_REGISTERED, user };
     } catch (error) {
       if (error instanceof ConflictException) {
         throw new ConflictException(error.message);
       }
-      throw new Error('Internal server error');
+      throw new Error(MESSAGES.ERRORS.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -30,12 +30,12 @@ export class AuthController {
     const { email, password } = loginDto;
     try {
       const loginResponse = await this.authService.login(email, password);
-      return { message: 'Login successful', accessToken: loginResponse.accessToken };
+      return { message: MESSAGES.SUCCESS.LOGIN_SUCCESS, accessToken: loginResponse.accessToken };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw new UnauthorizedException(error.message);
       }
-      throw new Error('Internal server error');
+      throw new Error(MESSAGES.ERRORS.INTERNAL_SERVER_ERROR);
     }
   }
 }

@@ -10,15 +10,15 @@ export class Project extends Document {
   description: string;
 
   @Prop({ required: true })
-  owner: string; // User ID of the project owner
+  owner: string;
   
-  @Prop({ type: [String], default: [] }) // Default to an empty array if no collaborators
+  @Prop({ type: [String], default: [] }) 
   collaborators: string[];
 
   @Prop({
     type: Map,
     of: String, // Role-based permissions: userId -> role (e.g., 'admin', 'editor', 'viewer')
-    default: {}, // Default to an empty map
+    default: {}, 
   })
   roles: Map<string, string>;
 

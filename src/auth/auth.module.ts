@@ -23,7 +23,6 @@ import { JwtStrategy } from './jwt.strategy';
 // export class AuthModule {}
 export class AuthModule {
   constructor() {
-    // Debugging log to check if the secret is being read correctly
     console.log('JWT_SECRET:', process.env.JWT_SECRET);
   }
 }

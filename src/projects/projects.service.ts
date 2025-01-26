@@ -1,20 +1,19 @@
-
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Project } from './project.schema';
 import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
-import { NotificationsGateway } from '../notifications/notifications.gateway'; // Import NotificationsGateway
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { AddCollaboratorDto } from './dto/add-collaborator.dto';
-import { User } from '../users/user.schema'; // Import User schema
-
+import { User } from '../users/user.schema';
+import { PROJECTS_MESSAGES } from './constants/projects.constants';
 
 @Injectable()
 export class ProjectsService {
   constructor(
     @InjectModel(Project.name) private projectModel: Model<Project>,
-    @InjectModel(User.name) private userModel: Model<User>, // Inject User model
-    private readonly notificationsGateway: NotificationsGateway, // Inject NotificationsGateway
+    @InjectModel(User.name) private userModel: Model<User>,
+    private readonly notificationsGateway: NotificationsGateway,
   ) { }
 
   // Create a new project
@@ -24,7 +23,7 @@ export class ProjectsService {
     // Check if the project with the same name already exists
     const existingProject = await this.projectModel.findOne({ name }).exec();
     if (existingProject) {
-      throw new BadRequestException('A project with this name already exists');
+      throw new BadRequestException(PROJECTS_MESSAGES.ERRORS.PROJECT_EXISTS);
     }
 
     // Create a new project document
@@ -33,7 +32,7 @@ export class ProjectsService {
       description,
       owner,
       collaborators: [owner],
-      roles: { [owner]: 'admin' },  // Owner gets admin role by default
+      roles: { [owner]: 'admin' },
     });
 
     // Save the new project
@@ -43,7 +42,7 @@ export class ProjectsService {
     this.notificationsGateway.notifyProjectCollaborators(savedProject.collaborators, {
       type: 'project_created',
       projectId: savedProject._id,
-      message: `A new project "${savedProject.name}" has been created.`,
+      message: PROJECTS_MESSAGES.INFO.PROJECT_CREATED(savedProject.name),
     });
 
     return savedProject;
@@ -53,7 +52,7 @@ export class ProjectsService {
   async getProjectById(projectId: string) {
     const project = await this.projectModel.findById(projectId).exec();
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException(PROJECTS_MESSAGES.ERRORS.PROJECT_NOT_FOUND);
     }
 
     // Populate owner and collaborators
@@ -67,13 +66,12 @@ export class ProjectsService {
           id: owner._id,
           name: owner.email,
         } : null,
-      // collaborators,
-      // collaborators: collaborators.map((collaborator) => collaborator._id.toString()), // Extract user IDs
+
       collaborators: collaborators.map((collaborator): { id: string; name: string } => ({
         id: collaborator._id.toString(),
         name: collaborator.email,
       })),
-      roles: Object.fromEntries(project.roles), // Ensure roles are included in the returned project data
+      roles: Object.fromEntries(project.roles),
     };
   }
 
@@ -86,14 +84,14 @@ export class ProjectsService {
   async updateProject(projectId: string, updateProjectDto: UpdateProjectDto) {
     const project = await this.projectModel.findByIdAndUpdate(projectId, updateProjectDto, { new: true }).exec();
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException(PROJECTS_MESSAGES.ERRORS.PROJECT_NOT_FOUND);
     }
 
     // Send a notification to all collaborators (including the owner)
     this.notificationsGateway.notifyProjectCollaborators(project.collaborators, {
       type: 'project_updated',
       projectId: project._id,
-      message: `The project "${project.name}" has been updated.`,
+      message: PROJECTS_MESSAGES.INFO.PROJECT_UPDATED(project.name),
     });
 
     return project;
@@ -103,14 +101,14 @@ export class ProjectsService {
   async archiveProject(projectId: string) {
     const project = await this.projectModel.findByIdAndUpdate(projectId, { isArchived: true }, { new: true }).exec();
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException(PROJECTS_MESSAGES.ERRORS.PROJECT_NOT_FOUND);
     }
 
     // Send a notification to all collaborators (including the owner)
     this.notificationsGateway.notifyProjectCollaborators(project.collaborators, {
       type: 'project_archived',
       projectId: project._id,
-      message: `The project "${project.name}" has been archived.`,
+      message: PROJECTS_MESSAGES.INFO.PROJECT_ARCHIVED(project.name),
     });
 
     return project;
@@ -121,24 +119,24 @@ export class ProjectsService {
 
     const project = await this.projectModel.findById(projectId).exec();
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException(PROJECTS_MESSAGES.ERRORS.PROJECT_NOT_FOUND);
     }
 
     // Ensure the requesting user is the owner or an admin of the project
     const userRole = project.roles.get(ownerId);
     if (userRole !== 'admin') {
-      throw new UnauthorizedException('Only admins can add collaborators');
+      throw new UnauthorizedException(PROJECTS_MESSAGES.ERRORS.UNAUTHORIZED_ACTION);
     }
 
     // Check if the user exists in the system
     const userExists = await this.userModel.findById(userId).exec();
     if (!userExists) {
-      throw new NotFoundException(`User with ID ${userId} does not exist`);
+      throw new NotFoundException(PROJECTS_MESSAGES.ERRORS.USER_NOT_FOUND(userId));
     }
 
     // Check if the user is already a collaborator
     if (project.collaborators.includes(userId)) {
-      throw new BadRequestException('User is already a collaborator');
+      throw new BadRequestException(PROJECTS_MESSAGES.ERRORS.USER_ALREADY_COLLABORATOR);
     }
 
     // Add the user as a collaborator with the specified role
@@ -152,29 +150,27 @@ export class ProjectsService {
     this.notificationsGateway.notifyUser(userId, {
       type: 'collaborator_added',
       projectId: project._id,
-      message: `You have been added as a "${role}" to the project "${project.name}".`,
+      message: PROJECTS_MESSAGES.INFO.COLLABORATOR_ADDED(role, project.name),
     });
 
     return project;
   }
 
-
-
   async updateCollaboratorRole(projectId: string, ownerId: string, userId: string, newRole: string) {
     const project = await this.projectModel.findById(projectId).exec();
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException(PROJECTS_MESSAGES.ERRORS.PROJECT_NOT_FOUND);
     }
 
     // Ensure the requesting user is the owner or an admin of the project
     const userRole = project.roles.get(ownerId);
     if (userRole !== 'admin') {
-      throw new UnauthorizedException('Only admins can update collaborator roles');
+      throw new UnauthorizedException(PROJECTS_MESSAGES.ERRORS.UNAUTHORIZED_ACTION);
     }
 
     // Check if the user is a collaborator
     if (!project.collaborators.includes(userId)) {
-      throw new BadRequestException('User is not a collaborator');
+      throw new BadRequestException(PROJECTS_MESSAGES.ERRORS.NOT_A_COLLABORATOR);
     }
 
     // Update the user's role
@@ -185,11 +181,9 @@ export class ProjectsService {
     this.notificationsGateway.notifyUser(userId, {
       type: 'role_updated',
       projectId: project._id,
-      message: `Your role in the project "${project.name}" has been updated to "${newRole}".`,
+      message: PROJECTS_MESSAGES.INFO.ROLE_UPDATED(newRole, project.name),
     });
 
     return project;
   }
-
-
 }
